@@ -213,12 +213,10 @@ void Heatmap::update(double totalDuration, const VectorSet<ScriptAxisAction> &ac
 void Heatmap::draw(ImDrawList *drawList, const ImVec2 &min, const ImVec2 &max) {
     drawList->AddCallback(
         [](const ImDrawList * /*parentList*/, const ImDrawCmd *cmd) {
-            auto *self = static_cast<Heatmap *>(cmd->UserCallbackData);
+            (void)cmd;
 
             glActiveTexture(GL_TEXTURE2);
             glBindTexture(GL_TEXTURE_2D, sColorLutTexture);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, self->m_speedTexture);
             glActiveTexture(GL_TEXTURE0);
 
             ImDrawData *drawData = ImGui::GetDrawData();
@@ -233,14 +231,30 @@ void Heatmap::draw(ImDrawList *drawList, const ImVec2 &min, const ImVec2 &max) {
                 {(r + l) / (l - r), (t + b) / (b - t), 0.0f, 1.0f},
             };
             sHeatmapShader->use();
+            // ImGui configures its VAO using the attribute locations returned for its own
+            // shader. Those locations are linker/driver-dependent and need not match the
+            // heatmap shader's explicit 0/1/2 layout. Re-point the current ImGui VBO for
+            // this draw; DrawCallback_ResetRenderState restores ImGui's layout afterward.
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ImDrawVert),
+                                  reinterpret_cast<void *>(offsetof(ImDrawVert, pos)));
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ImDrawVert),
+                                  reinterpret_cast<void *>(offsetof(ImDrawVert, uv)));
+            glEnableVertexAttribArray(2);
+            glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ImDrawVert),
+                                  reinterpret_cast<void *>(offsetof(ImDrawVert, col)));
             sHeatmapShader->setProjMtx(&orthoProjection[0][0]);
-            sHeatmapShader->setSpeedTex(1);
+            // The ImGui OpenGL backend binds the draw command's texture on unit 0
+            // after this callback returns. The quad below carries m_speedTexture as
+            // a valid ImTextureRef, so sample that backend-managed binding directly.
+            sHeatmapShader->setSpeedTex(0);
             sHeatmapShader->setColorLut(2);
             sHeatmapShader->setBakeFade(false);
         },
-        this);
+        nullptr);
 
-    drawList->AddImage(0, min, max); // Texture ID 0 because we handle it in the callback
+    drawList->AddImage(ImTextureRef(static_cast<ImTextureID>(m_speedTexture)), min, max);
     drawList->AddCallback(ImGui::GetPlatformIO().DrawCallback_ResetRenderState, nullptr);
 }
 
