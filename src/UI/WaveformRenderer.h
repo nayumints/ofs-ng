@@ -32,7 +32,6 @@ class WaveformRenderer {
     // per frame, so a single instance suffices.
     struct CallbackData {
         WaveformShader *shader = nullptr;
-        uint32_t textureId = 0;
         float startBucket = 0.f;
         float endBucket = 0.f;
         float step = 1.f;            // ladder group size in buckets (power of two)

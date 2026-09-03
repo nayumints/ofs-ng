@@ -3,6 +3,7 @@
 #include "Services/WaveformService.h"
 #include "UI/Theme.h"
 #include <algorithm>
+#include <cstddef>
 #include <cmath>
 #include <glad/gl.h>
 
@@ -15,12 +16,6 @@ WaveformRenderer::~WaveformRenderer() = default;
 
 void WaveformRenderer::glCallback(const ImDrawList * /*parentList*/, const ImDrawCmd *cmd) {
     const auto *d = static_cast<const CallbackData *>(cmd->UserCallbackData);
-
-    // Bind the peak texture to unit 1, not 0: ImGui rebinds the draw command's texture (id 0) to unit 0
-    // right before the AddImage quad draws, which would clobber unit 0. The sampler reads unit 1.
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, d->textureId);
-    glActiveTexture(GL_TEXTURE0);
 
     const ImDrawData *dd = ImGui::GetDrawData();
     const float l = dd->DisplayPos.x;
@@ -35,8 +30,23 @@ void WaveformRenderer::glCallback(const ImDrawList * /*parentList*/, const ImDra
     };
 
     d->shader->use();
+    // ImGui configures its VAO using the attribute locations returned for its own
+    // shader. Those locations are linker/driver-dependent and need not match the
+    // waveform shader's explicit 0/1/2 layout. Re-point the current ImGui VBO for
+    // this draw; DrawCallback_ResetRenderState restores ImGui's layout afterward.
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ImDrawVert),
+                          reinterpret_cast<void *>(offsetof(ImDrawVert, pos)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ImDrawVert),
+                          reinterpret_cast<void *>(offsetof(ImDrawVert, uv)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ImDrawVert),
+                          reinterpret_cast<void *>(offsetof(ImDrawVert, col)));
     d->shader->setProjMtx(&ortho[0][0]);
-    d->shader->setPeaks(1);
+    // The ImGui OpenGL backend binds the draw command's peak texture on unit 0
+    // after this callback returns, so sample that backend-managed binding directly.
+    d->shader->setPeaks(0);
     d->shader->setWindow(d->startBucket, d->endBucket, d->step, d->stride, d->bucketsPerPixel);
     d->shader->setTexDims(d->bucketCount, d->texW, d->texH);
     d->shader->setScale(d->scale);
@@ -66,7 +76,6 @@ void WaveformRenderer::drawBackground(ImDrawList *drawList, const ImVec2 &pos, c
     const double stride = std::max(1.0, step / static_cast<double>(kWaveformMaxScan));
 
     cb_.shader = shader_.get();
-    cb_.textureId = v.textureId;
     cb_.startBucket = static_cast<float>(offsetTime * toBucket);
     cb_.endBucket = static_cast<float>((offsetTime + visibleTime) * toBucket);
     cb_.step = static_cast<float>(step);
@@ -85,7 +94,8 @@ void WaveformRenderer::drawBackground(ImDrawList *drawList, const ImVec2 &pos, c
     cb_.scale = ofs::theme::GetStyleVar(AppVar_WaveformScale);
 
     drawList->AddCallback(&glCallback, &cb_);
-    drawList->AddImage(0, pos, {pos.x + size.x, pos.y + size.y}); // texture handled in the callback
+    drawList->AddImage(ImTextureRef(static_cast<ImTextureID>(v.textureId)), pos,
+                       {pos.x + size.x, pos.y + size.y});
     drawList->AddCallback(ImGui::GetPlatformIO().DrawCallback_ResetRenderState, nullptr);
 }
 
