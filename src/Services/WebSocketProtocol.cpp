@@ -132,6 +132,15 @@ std::string base64(const std::array<uint8_t, 20> &bytes) {
 
 } // namespace
 
+std::string funscriptName(std::string_view baseName, std::string_view axisTag) {
+    std::string name(baseName);
+    if (!axisTag.empty()) {
+        name.push_back('.');
+        name.append(axisTag);
+    }
+    return name;
+}
+
 std::optional<Command> parseCommand(std::string_view text) {
     const nlohmann::json root = nlohmann::json::parse(text, nullptr, false);
     if (!root.is_object())

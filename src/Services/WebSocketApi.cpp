@@ -129,13 +129,7 @@ std::string scriptBaseName(const ScriptProject &project) {
 }
 
 std::string scriptName(const ScriptProject &project, StandardAxis role) {
-    std::string name = scriptBaseName(project);
-    if (role != StandardAxis::L0) {
-        name.push_back('.');
-        name.append(standardAxisTag(role));
-    }
-    name += ".funscript";
-    return name;
+    return ws::funscriptName(scriptBaseName(project), role == StandardAxis::L0 ? "" : standardAxisTag(role));
 }
 
 nlohmann::json funscriptEvent(const ScriptProject &project, StandardAxis role, double duration) {

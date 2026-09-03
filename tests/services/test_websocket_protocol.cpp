@@ -7,6 +7,11 @@
 
 using namespace ofs::ws;
 
+TEST_CASE("Classic OFS WebSocket script names are extension-free titles") {
+    CHECK(funscriptName("video") == "video");
+    CHECK(funscriptName("video", "L1") == "video.L1");
+}
+
 TEST_CASE("WebSocket handshake matches the RFC 6455 accept example and OFS subprotocol") {
     const std::string request =
         "GET /ofs HTTP/1.1\r\n"

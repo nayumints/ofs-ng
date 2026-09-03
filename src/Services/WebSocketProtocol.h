@@ -12,6 +12,9 @@ namespace ofs::ws {
 inline constexpr std::string_view kPath = "/ofs";
 inline constexpr std::string_view kSubprotocol = "ofs-api.json";
 
+// Build the extension-free script title used by Classic OFS WebSocket events.
+std::string funscriptName(std::string_view baseName, std::string_view axisTag = {});
+
 struct SeekCommand {
     double time = 0.0;
 };
